@@ -16,7 +16,7 @@ significant cultural and personal preference in long-term relationship matching.
 
 ⚡ Key Features:
 
-Offline-First: All API data is cached in Room; users can view matches even without an internet connection.
+Offline-First: All API data is cached in Room; users can view matches even without an internet connection.\n
 Overlay Filters: A floating filter menu that utilizes AnimatedVisibility to overlap content without disrupting the pager's position.
 Vertical Pager: Used a vertical pager instead of using Lazy Column to minimize the amount swipe gestures required per profile.
 Real-time Network Monitoring: A NetworkObserver provides a sticky "No Internet" banner that reacts instantly to connectivity changes.
