@@ -1,11 +1,7 @@
 package com.example.shaadidemo
 
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -17,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.VerticalPager
@@ -25,7 +20,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -38,8 +32,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,25 +49,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.example.shaadidemo.data.entity.ProfilesEntity
+import com.example.shaadidemo.viewmodel.MatchViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfilesScreen() {
-    val mockUsers = remember {
-        listOf(
-            MockUser(1, "Aditi Sharma", 26, "Mumbai", "India",  "M.Tech", 92, "https://randomuser.me/api/portraits/women/1.jpg"),
-            MockUser(2, "Rahul Verma", 29, "Nagpur", "India",  "MBA", 85, "https://randomuser.me/api/portraits/men/2.jpg"),
-            MockUser(3, "Sneha Patil", 25, "Pune", "India",  "B.E", 78, "https://randomuser.me/api/portraits/women/3.jpg"),
-            MockUser(4, "Amit Deshmukh", 30, "Mumbai", "India",  "PhD", 95, "https://randomuser.me/api/portraits/men/4.jpg"),
-            MockUser(5, "Priya Nair", 27, "Bangalore", "India",  "MBBS", 88, "https://randomuser.me/api/portraits/women/5.jpg")
-        )
-    }
+fun ProfilesScreen(viewModel: MatchViewModel) {
 
-    val pagerState = rememberPagerState(pageCount = { mockUsers.size })
+    val isLoading by viewModel.isLoading.collectAsState(false)
+    val profiles by viewModel.profiles.collectAsState()
+
+    val pullToRefreshState = rememberPullToRefreshState()
+    val pagerState = rememberPagerState(pageCount = { profiles.size })
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (profiles.isNotEmpty() && pagerState.currentPage == profiles.size - 2) {
+            viewModel.refreshMatches()
+        }
+    }
 
     Scaffold(
         containerColor = Color.White,
@@ -83,28 +84,67 @@ fun ProfilesScreen() {
         }
     ) { innerPadding ->
 
-        Box {
-            VerticalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize()
-                    .background(Color.White),
-                pageSpacing = 16.dp
-            ) { page ->
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+        PullToRefreshBox(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize(),
+            state = pullToRefreshState,
+            isRefreshing = isLoading,
+            onRefresh = {
+                viewModel.refreshMatches()
+            },
+            indicator =  {
+                PullToRefreshDefaults.Indicator(
+                    state = pullToRefreshState,
+                    isRefreshing = isLoading,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    color = Color(0xFFFF5A60)
+                )
+            }
+        ) {
+            if (profiles.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    ProfileCard(
-                        user = mockUsers[page],
-                        onAccept = { /* Handle accept action */ },
-                        onDecline = { /* Handle decline action */ }
+                    Text(
+                        text = "No profiles found.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.refreshMatches() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5A60))
+                    ) {
+                        Text("Retry")
+                    }
+                }
+            } else {
+                VerticalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White),
+                    pageSpacing = 16.dp
+                ) { page ->
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ProfileCard(
+                            profile = profiles[page],
+                            onAccept = { uuid ->
+                                viewModel.acceptUser(uuid)
+                            },
+                            onDecline = { uuid ->
+                                viewModel.declineUser(uuid)
+                            }
+                        )
+                    }
                 }
             }
-
-            ScrollDownHint()
         }
     }
 }
@@ -112,14 +152,13 @@ fun ProfilesScreen() {
 @OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun ProfileCard(
-    user: MockUser,
-    onAccept: () -> Unit,
-    onDecline: () -> Unit
+    profile: ProfilesEntity,
+    onAccept: (uuid: String) -> Unit,
+    onDecline: (uuid: String) -> Unit
 ) {
 
-    var status by remember { mutableStateOf("PENDING") }
+    var status by remember(profile.uuid) { mutableStateOf(profile.matchStatus) }
 
-    // Use a Box to layer text and buttons over the full-height image
     Card(
         modifier = Modifier
             .fillMaxSize()
@@ -129,18 +168,16 @@ fun ProfileCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // 1. Full-screen Background Image
             GlideImage(
-                model = user.imageUrl,
+                model = profile.picture.large,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
 
-            // 2. Top-left Match Score Badge
-            AnimatedMatchScore(user.score)
+            // Top-left Match Score Badge
+            AnimatedMatchScore(profile.matchScore)
 
-            // 3. Bottom Detail Overlay (Gradient + Info + Actions)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -154,16 +191,14 @@ fun ProfileCard(
                     .padding(24.dp)
             ) {
                 Column {
-                    ScrollDownHint()
-
                     Text(
-                        text = "${user.name}, ${user.age}",
+                        text = "${profile.name.first} ${profile.name.last}, ${profile.dob.age}",
                         style = MaterialTheme.typography.headlineMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${user.city}, ${user.country} • ${user.education}",
+                        text = "${profile.location.city}, ${profile.location.country} • ${profile.education}",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.LightGray
                     )
@@ -180,7 +215,7 @@ fun ProfileCard(
                                 OutlinedButton(
                                     onClick = {
                                         status = "DECLINED"
-                                        onDecline()
+                                        onDecline(profile.uuid)
                                     },
                                     modifier = Modifier.weight(1f).height(50.dp),
                                     border = BorderStroke(2.dp, Color.White),
@@ -191,10 +226,12 @@ fun ProfileCard(
                                 Button(
                                     onClick = {
                                         status = "ACCEPTED"
-                                        onAccept()
+                                        onAccept(profile.uuid)
                                     },
                                     modifier = Modifier.weight(1f).height(50.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF4CAF50).copy(alpha = 0.7f)
+                                    )
                                 ) {
                                     Text("Accept", fontWeight = FontWeight.Bold)
                                 }
@@ -207,7 +244,6 @@ fun ProfileCard(
                             StatusResultView("Profile Declined", Color.Red, null)
                         }
                     }
-
                 }
             }
         }
@@ -232,12 +268,6 @@ fun StatusResultView(text: String, color: Color, icon: ImageVector?) {
     }
 }
 
-@Preview
-@Composable
-fun Review() {
-    ProfilesScreen()
-}
-
 @Composable
 fun AnimatedMatchScore(targetScore: Int) {
     var animationTriggered by remember { mutableStateOf(false) }
@@ -253,7 +283,7 @@ fun AnimatedMatchScore(targetScore: Int) {
 
     Surface(
         color = Color.Black.copy(alpha = 0.6f),
-        shape = RoundedCornerShape(bottomEnd =24.dp)
+        shape = RoundedCornerShape(bottomEnd = 24.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -267,49 +297,3 @@ fun AnimatedMatchScore(targetScore: Int) {
         }
     }
 }
-
-@Composable
-fun ScrollDownHint(modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "scroll")
-    val yOffset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "yOffset"
-    )
-
-    Column(
-        modifier = modifier
-            .padding(bottom = 16.dp)
-            .fillMaxWidth()
-            .offset(y = yOffset.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Swipe for next",
-            color = Color.White.copy(alpha = 0.8f),
-            style = MaterialTheme.typography.labelSmall
-        )
-        Icon(
-            imageVector = Icons.Default.KeyboardArrowDown,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = 0.8f)
-        )
-    }
-}
-
-
-
-data class MockUser(
-    val id: Int,
-    val name: String,
-    val age: Int,
-    val city: String,
-    val country: String,
-    val education: String,
-    val score: Int,
-    val imageUrl: String
-)
