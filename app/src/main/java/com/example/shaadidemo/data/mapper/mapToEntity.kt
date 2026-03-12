@@ -15,7 +15,7 @@ import kotlin.math.abs
 fun mapToEntity(remote: RemoteUser): ProfilesEntity {
 
     val education = listOf("Bachelor's", "Master's", "PhD").random()
-    val religion = listOf("Hindu", "Christian", "Sikh", "Muslim").random()
+    val religion = listOf("Hindu", "Christian", "Sikh").random()
 
     return ProfilesEntity(
         uuid = remote.login.uuid,
@@ -29,7 +29,7 @@ fun mapToEntity(remote: RemoteUser): ProfilesEntity {
             city = remote.location.city,
             state = remote.location.state,
             country = remote.location.country,
-            postcode = remote.location.postcode.toString(),
+            postcode = remote.location.postcode,
             street = Street(remote.location.street.number, remote.location.street.name),
             coordinates = Coordinates(
                 remote.location.coordinates.latitude,
@@ -66,8 +66,7 @@ private fun calculateScore(
     education: String,
     religion: String
 ): Int {
-    // User's own preferences (Hardcoded for demo)
-    val myAge = 28
+    val myAge = 58
     val myCity = "Courbevoie"
     val myState = "Bouches-du-Rhône"
     val myCountry = "France"

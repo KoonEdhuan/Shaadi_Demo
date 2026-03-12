@@ -1,13 +1,21 @@
 package com.example.shaadidemo
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,20 +23,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -53,6 +72,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.example.shaadidemo.data.connection.NetworkObserver
 import com.example.shaadidemo.data.entity.ProfilesEntity
 import com.example.shaadidemo.viewmodel.MatchViewModel
 
@@ -60,9 +80,12 @@ import com.example.shaadidemo.viewmodel.MatchViewModel
 @Composable
 fun ProfilesScreen(viewModel: MatchViewModel) {
 
+    val snackBarHostState = remember { SnackbarHostState() }
+    val networkStatus by viewModel.networkStatus.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState(false)
     val profiles by viewModel.profiles.collectAsState()
 
+    var showFilters by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
     val pagerState = rememberPagerState(pageCount = { profiles.size })
 
@@ -72,77 +95,142 @@ fun ProfilesScreen(viewModel: MatchViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.snackBarFlow.collect { message ->
+            snackBarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackBarHostState) },
         containerColor = Color.White,
         topBar =  {
-            TopAppBar(
-                title = { Text(
-                    text = "Profiles",
-                    style = MaterialTheme.typography.titleLarge
-                ) },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text("Profiles", style = MaterialTheme.typography.titleLarge) },
+                    actions = {
+                        IconButton(onClick = { showFilters = !showFilters }) {
+                            Icon(
+                                imageVector = if (showFilters) Icons.Default.Close else Icons.AutoMirrored.Filled.List,
+                                contentDescription = "Toggle Filters",
+                                tint = if (showFilters) Color.Red else Color.LightGray
+                            )
+                        }
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = networkStatus == NetworkObserver.Status.Lost,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.DarkGray)
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No Internet Connection",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    }
+                }
+            }
         }
     ) { innerPadding ->
 
-        PullToRefreshBox(
+        Box(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
-            state = pullToRefreshState,
-            isRefreshing = isLoading,
-            onRefresh = {
-                viewModel.refreshMatches()
-            },
-            indicator =  {
-                PullToRefreshDefaults.Indicator(
-                    state = pullToRefreshState,
-                    isRefreshing = isLoading,
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    color = Color(0xFFFF5A60)
-                )
-            }
+                .fillMaxSize()
         ) {
-            if (profiles.isEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "No profiles found.",
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.bodyLarge
+            PullToRefreshBox(
+                modifier = Modifier
+                    .fillMaxSize(),
+                state = pullToRefreshState,
+                isRefreshing = isLoading,
+                onRefresh = {
+                    viewModel.refreshMatches()
+                },
+                indicator =  {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullToRefreshState,
+                        isRefreshing = isLoading,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        color = Color.Red
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.refreshMatches() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5A60))
+                }
+            ) {
+                if (profiles.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Text("Retry")
+                        Text(
+                            text = "No profiles found.",
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.refreshMatches() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Red.copy(0.8f)
+                            )
+                        ) {
+                            Text(
+                                "Retry",
+                                color = Color.White
+                            )
+                        }
+                    }
+                } else {
+                    VerticalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White),
+                        pageSpacing = 16.dp
+                    ) { page ->
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            ProfileCard(
+                                profile = profiles[page],
+                                onAccept = { uuid ->
+                                    viewModel.acceptUser(uuid)
+                                },
+                                onDecline = { uuid ->
+                                    viewModel.declineUser(uuid)
+                                }
+                            )
+                        }
                     }
                 }
-            } else {
-                VerticalPager(
-                    state = pagerState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.White),
-                    pageSpacing = 16.dp
-                ) { page ->
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ProfileCard(
-                            profile = profiles[page],
-                            onAccept = { uuid ->
-                                viewModel.acceptUser(uuid)
-                            },
-                            onDecline = { uuid ->
-                                viewModel.declineUser(uuid)
-                            }
-                        )
-                    }
+            }
+
+            AnimatedVisibility(
+                visible = showFilters,
+                enter = slideInVertically { -it } + fadeIn(),
+                exit = slideOutVertically { -it } + fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shadowElevation = 8.dp,
+                    color = Color.White.copy(alpha = 0.95f)
+                ) {
+                    FilterSection(viewModel)
                 }
             }
         }
@@ -198,7 +286,17 @@ fun ProfileCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${profile.location.city}, ${profile.location.country} • ${profile.education}",
+                        text = "${profile.location.city}, ${profile.location.country}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.LightGray
+                    )
+                    Text(
+                        text = profile.education,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.LightGray
+                    )
+                    Text(
+                        text = profile.religion,
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.LightGray
                     )
@@ -217,7 +315,9 @@ fun ProfileCard(
                                         status = "DECLINED"
                                         onDecline(profile.uuid)
                                     },
-                                    modifier = Modifier.weight(1f).height(50.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(50.dp),
                                     border = BorderStroke(2.dp, Color.White),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                                 ) {
@@ -228,12 +328,18 @@ fun ProfileCard(
                                         status = "ACCEPTED"
                                         onAccept(profile.uuid)
                                     },
-                                    modifier = Modifier.weight(1f).height(50.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(50.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(0xFF4CAF50).copy(alpha = 0.7f)
                                     )
                                 ) {
-                                    Text("Accept", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Accept",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
                                 }
                             }
                         }
@@ -294,6 +400,97 @@ fun AnimatedMatchScore(targetScore: Int) {
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterSection(viewModel: MatchViewModel) {
+    val educationOptions = listOf("All", "Bachelor's", "Master's", "PhD")
+    val religionOptions = listOf("All", "Hindu", "Christian", "Sikh")
+
+    val selectedEdu by viewModel.selectedEducation.collectAsState()
+    val selectedRel by viewModel.selectedReligion.collectAsState()
+
+    val primaryRed = Color(0xFFFF5A60)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(top = 8.dp)
+    ) {
+        FilterGroup(
+            title = "Education",
+            options = educationOptions,
+            selectedOption = selectedEdu ?: "All",
+            onSelected = { viewModel.setEducationFilter(if (it == "All") null else it) },
+            activeColor = primaryRed
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        FilterGroup(
+            title = "Religion",
+            options = religionOptions,
+            selectedOption = selectedRel ?: "All",
+            onSelected = { viewModel.setReligionFilter(if (it == "All") null else it) },
+            activeColor = primaryRed
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider(thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterGroup(
+    title: String,
+    options: List<String>,
+    selectedOption: String,
+    onSelected: (String) -> Unit,
+    activeColor: Color
+) {
+    Column {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.Gray,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(options) { option ->
+                val isSelected = selectedOption == option
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelected(option) },
+                    label = {
+                        Text(
+                            text = option,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = activeColor.copy(alpha = 0.1f),
+                        selectedLabelColor = activeColor,
+                        selectedLeadingIconColor = activeColor
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        enabled = true,
+                        selected = isSelected,
+                        borderColor = Color.LightGray,
+                        selectedBorderColor = activeColor,
+                        borderWidth = 1.dp,
+                        selectedBorderWidth = 1.5.dp
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
         }
     }
 }

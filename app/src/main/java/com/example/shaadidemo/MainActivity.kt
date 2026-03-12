@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.ViewModelProvider
+import com.example.shaadidemo.data.connection.NetworkObserver
 import com.example.shaadidemo.data.connection.RetrofitClient
 import com.example.shaadidemo.data.db.AppDataBase
 import com.example.shaadidemo.data.repository.MatchRepository
@@ -20,8 +21,10 @@ class MainActivity : ComponentActivity() {
         val dao = database.matchDao()
 
         val repository = MatchRepository(RetrofitClient.service, dao)
+        val networkObserver = NetworkObserver(applicationContext)
 
-        val viewModelFactory = MatchViewModelFactory(repository)
+
+        val viewModelFactory = MatchViewModelFactory(repository, networkObserver)
         val viewModel = ViewModelProvider(this, viewModelFactory)[MatchViewModel::class.java]
 
         enableEdgeToEdge()

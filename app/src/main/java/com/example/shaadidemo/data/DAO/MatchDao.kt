@@ -18,4 +18,11 @@ interface MatchDao {
 
     @Query("UPDATE profiles SET matchStatus = :status WHERE uuid = :uuid")
     suspend fun updateMatchStatus(uuid: String, status: String)
+
+    @Query("""
+    SELECT * FROM profiles 
+    WHERE (:education IS NULL OR education = :education)
+    AND (:religion IS NULL OR religion = :religion)
+""")
+    fun getFilteredProfiles(education: String?, religion: String?): Flow<List<ProfilesEntity>>
 }

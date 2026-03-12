@@ -22,9 +22,7 @@ class MatchRepository(
                 val response = service.getMatches()
                 if (response.isSuccessful) {
                     val remoteResults = response.body()?.results ?: emptyList()
-                    Log.d("Testing", "remoteResults $remoteResults")
                     val entities = remoteResults.map { mapToEntity(it) }
-                    Log.d("Testing", "entities $entities")
                     matchDao.insertProfiles(entities)
                 }
             } catch (e: Exception) {
@@ -35,5 +33,9 @@ class MatchRepository(
 
     suspend fun updateStatus(uuid: String, status: String) {
         matchDao.updateMatchStatus(uuid, status)
+    }
+
+    suspend fun getFilteredProfiles(education: String?, religion: String?): Flow<List<ProfilesEntity>> {
+        return matchDao.getFilteredProfiles(education, religion)
     }
 }

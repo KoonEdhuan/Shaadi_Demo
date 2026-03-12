@@ -9,6 +9,6 @@ interface MatchService {
 
     @GET("api/")
     suspend fun getMatches(
-        @Query("results") results: Int = 20
+        @Query("results") results: Int = 50
     ): Response<ProfilesResponse>
 }
